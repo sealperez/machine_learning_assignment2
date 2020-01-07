@@ -1,0 +1,586 @@
+##################################################################################################################################
+#############################################     MACHINE LEARNING: ASSIGNMENT 2     #############################################
+#############################################     PROBABILISTIC GRAPHICAL MODELS     #############################################
+##################################################################################################################################
+
+set.seed(123)
+
+# to import the R packages that will be used in this study
+library(bnlearn)
+library(gRain)
+library(Rgraphviz)
+library(ggplot2)
+library(reshape)
+library(dplyr)
+library(tidyr)
+library(readxl)
+
+####################################################################
+##### ANALYSIS OF THE BAYESIAN NETWORK PROPOSED BY THE AUTHORS #####
+####################################################################
+
+################### DIRECTED ACYCLIC GRAPH (DAG) ###################
+
+insect.flight1 = empty.graph(nodes = c("Rainfall", "Humidity", "TempRange", "MaxTemp", "Day", "Flight","Wind","PhotonFlux","tSunrise","tSunset")) # to create the nodes
+# to create the arcs
+insect.flight1 = set.arc(insect.flight1, from = "Humidity", to = "Rainfall")
+insect.flight1 = set.arc(insect.flight1, from = "Humidity", to = "TempRange")
+insect.flight1 = set.arc(insect.flight1, from = "MaxTemp", to = "Humidity")
+insect.flight1 = set.arc(insect.flight1, from = "MaxTemp", to = "PhotonFlux")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "Rainfall")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "Humidity")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "TempRange")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "MaxTemp")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "Day")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "Wind")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "PhotonFlux")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "tSunrise")
+insect.flight1 = set.arc(insect.flight1, from = "Flight", to = "tSunset")
+insect.flight1 = set.arc(insect.flight1, from = "Day", to = "MaxTemp")
+insect.flight1 = set.arc(insect.flight1, from = "PhotonFlux", to = "Wind")
+insect.flight1 = set.arc(insect.flight1, from = "PhotonFlux", to = "tSunset")
+insect.flight1 = set.arc(insect.flight1, from = "tSunset", to = "tSunrise")
+
+arcs(insect.flight1) # to double-check all the arcs
+narcs(insect.flight1) # to get the total number of arcs
+amat(insect.flight1) # to get the adjacency matrix
+
+all.equal(cpdag(insect.flight1), insect.flight1) # to check if our DAG is a CPDAG
+
+# to plot the DAG using a customized format 
+hlight = list(nodes = "Flight", col = "red",textCol = "red")
+pp = graphviz.plot(insect.flight1, highlight = hlight, layout="fdp")
+nodeRenderInfo(pp) = list(fill = c("Rainfall" = "cyan", "Humidity" = "cyan", "TempRange" = "cyan", "MaxTemp" = "cyan", "Day" = "cyan", "Flight" = "yellow", "Wind" = "cyan","PhotonFlux" = "cyan", "tSunrise" = "cyan","tSunset" = "cyan"), fontsize = 18)
+renderGraph(pp)
+
+root.nodes(insect.flight1) # to identify the root nodes (i.e. nodes without parents)
+leaf.nodes(insect.flight1) # to identify the leaf nodes (i.e. nodes without children)
+
+mb(insect.flight1, "Flight") # to check that the Markov blanket of "Flight" includes all other factors
+sapply(nodes(insect.flight1), function(node) mb(insect.flight1, node = node)) # to get the Markov blankets for all nodes
+sapply(nodes(insect.flight1), function(node) dsep(insect.flight1, "Flight", node)) # to check if 'Flight' is d-separated from the other nodes (answer: FALSE in all cases!!)
+bnlearn::children(insect.flight1, "Flight") # to check that the children of "Flight" are all other factors
+bnlearn::parents(insect.flight1, "Flight") # to check that "Flight" has no parents
+
+dim(vstructs(insect.flight1)) # to obtain the number of v-structures present in the DAG (0 in this case!!)
+vstructs(insect.flight1) # to get the v-structures present in the DAG (none in this case)
+
+
+################### CONDITIONAL PROBABILITY TABLES (CPTs) ###################
+
+lv = c("yes", "no")
+
+Flight.prob = array(c(0.106, 0.894), dim = 2, dimnames = list(Flight = lv))
+Day.prob = array(c(0.971, 0.029, 0.876, 0.124), dim = c(2, 2), dimnames = list(Day = c("<344",">=344"), Flight = lv))
+Humidity.prob = array(c(0.467, 0.333, 0.200,
+			0.792, 0.188, 0.020,
+			0.849, 0.141, 0.010,
+			0.970, 0.029, 1.000E-03, 
+			0.374, 0.378, 0.248,
+			0.680, 0.169, 0.151,
+			0.650, 0.252, 0.098,
+			0.971, 0.026, 0.003),
+			dim = c(3,4,2), dimnames = list( Humidity = c("<82","82-93",">=93"), MaxTemp = c("<12.3",">12.3-14.6",">14.6-17.5",">=17.5"),Flight = lv))
+TempRange.prob = array(c(0.092, 0.908,
+			0.393, 0.607,
+			0.889, 0.111,
+			0.192, 0.808,
+			0.588, 0.412,
+			0.718, 0.282),
+			dim = c(2,3,2), dimnames = list(TempRange = c("<0.91",">=0.91"), Humidity = c("<82","82-93",">=93"), Flight = lv))
+Rainfall.prob = array(c(0.984, 0.016,
+			0.934, 0.0656,
+			0.778, 0.222,
+			0.978, 0.022,
+			0.886, 0.114,
+			0.759, 0.241),
+			dim = c(2,3,2), dimnames = list(Rainfall = c("<0.1",">=0.1"), Humidity = c("<82","82-93",">=93"), Flight = lv))
+MaxTemp.prob = array(c(0.039, 0.067, 0.245, 0.649,
+			0.046, 0.182, 0.545, 0.227,
+			0.381, 0.157, 0.199,  0.263,
+			0.532, 0.234, 0.112, 0.122),
+			dim = c(4,2,2), dimnames = list(MaxTemp = c("<12.3",">12.3-14.6",">14.6-17.5",">=17.5"), Day = c("<344",">=344"), Flight = lv))
+tSunrise.prob = array(c(5.00E-04, 5.00E-04, 0.947, 0.052,
+			5.00E-04, 5.00E-04, 0.143, 0.856,
+			0.944, 5.00E-04, 5.00E-04, 0.055,
+			0.003, 0.564, 0.432, 1.00E-03,
+			5.00E-04, 5.00E-04, 0.729, 0.270,
+			0.039, 1.00E-03, 0.079, 0.881,
+			0.601, 0.014, 1.00E-03, 0.384,
+			0.042, 0.404, 0.542, 0.012),
+			dim = c(4,4,2), dimnames = list(tSunrise = c("<19",">19-375",">375-891",">=891"), tSunset = c("<11",">11-498",">498-589",">=589"), Flight = lv))
+PhotonFlux.prob = array(c(0.367, 0.432, 0.200, 1.00E-03,
+			0.093, 0.585, 0.321, 1.00E-03,
+			0.063, 0.422, 0.484, 0.031,
+			0.035, 0.332, 0.548, 0.085,
+			0.490, 0.434, 0.075, 1.00E-03,
+			0.391, 0.369, 0.231, 0.009,
+			0.343, 0.333, 0.280, 0.044,
+			0.155, 0.228, 0.413, 0.204),
+			dim = c(4,4,2), dimnames = list(PhotonFlux = c("<0.1",">0.1-575",">575-1704",">=1704"), MaxTemp = c("<12.3",">12.3-14.6",">14.6-17.5",">=17.5"), Flight = lv))
+Wind.prob = array(c(0.244, 0.600, 0.156,
+			0.067, 0.789, 0.144,
+			0.005, 0.795, 0.200,
+			1.00E-03, 0.552, 0.447,
+			0.227, 0.598, 0.175,
+			0.109, 0.651, 0.240,
+			0.011, 0.505, 0.484,
+			1.00E-03, 0.319, 0.680),
+			dim = c(3,4,2), dimnames = list(Wind = c("<0.9",">0.9-4.1",">=4.1"), PhotonFlux = c("<0.1",">0.1-575",">575-1704",">=1704"), Flight = lv))
+tSunset.prob = array(c(0.622, 0.377, 5.00E-04, 5.00E-04,
+			0.102, 0.014, 0.063, 0.821,
+			3.33E-04, 3.33E-04, 3.34E-04, 0.999,
+			3.33E-04,3.33E-04, 3.34E-04, 0.999,
+			0.098, 0.867, 0.028, 0.007,
+			0.047, 0.193, 0.126, 0.634,
+			3.33E-04, 3.33E-04, 3.34E-04, 0.999,
+			3.33E-04, 3.33E-04, 3.34E-04, 0.999),
+			dim = c(4,4,2), dimnames = list(tSunset = c("<11",">11-498",">498-589",">=589"), PhotonFlux = c("<0.1",">0.1-575",">575-1704",">=1704"), Flight = lv))
+
+cpt = list(Flight = Flight.prob, Day = Day.prob, Humidity = Humidity.prob, TempRange = TempRange.prob, Rainfall = Rainfall.prob, MaxTemp = MaxTemp.prob, tSunrise = tSunrise.prob, PhotonFlux = PhotonFlux.prob, Wind = Wind.prob, tSunset = tSunset.prob) # to join the CPTs of all variables
+
+bn = custom.fit(insect.flight1, cpt) # to fit the parameters of the BN conditional on its structure
+nparams(bn) # to get the number of parameters of the BN
+
+# barplots for the cpt data
+bn.fit.barchart(bn$Flight,main="P(Flight)")
+bn.fit.barchart(bn$Day,main="P(Day|Flight)")
+bn.fit.barchart(bn$Humidity,main="P(Humidity|Flight, MaxTemp)")
+bn.fit.barchart(bn$TempRange,main="P(TempRange|Flight, Humidity)")
+bn.fit.barchart(bn$Rainfall,main="P(Rainfall|Flight, Humidity)")
+bn.fit.barchart(bn$MaxTemp,main="P(MaxTemp|Flight, Day)")
+bn.fit.barchart(bn$tSunrise,main="P(tSunrise|Flight, tSunset)")
+bn.fit.barchart(bn$PhotonFlux,main="P(PhotonFlux|Flight, MaxTemp)")
+bn.fit.barchart(bn$Wind,main="P(Wind|Flight, PhotonFlux)")
+bn.fit.barchart(bn$tSunset,main="P(tSunset|Flight, PhotonFlux)")
+
+
+####################################################################
+##########   ANALYSIS OF ALTERNATIVE BAYESIAN NETWORKS    ##########
+####################################################################
+
+setwd("<PATH TO MY WORKING DIRECTORY>") # to set the working directory
+Insect_flight <- read_excel("Insect_flight.xlsx") # to read the Excel file containing the experimental data
+View(Insect_flight)
+dim(Insect_flight)
+anyNA(Insect_flight) # to check that there are no 'NA' in the data set
+
+# preparation of the data that will be used to build the first alternative BN (CLGBN 1)
+# to simplify the data set by removing unused columns and renaming the rest according to the nodes of the BN
+Insect_flight1<-Insect_flight %>% select(-c(site, temp, temp_min, rain_sum, hylurgus, hylastes, arhopalus, prionoplus, trial, hour, hylastes_presence, arhopalus_presence))
+View(Insect_flight1)
+Insect_flight1<- Insect_flight1 %>% rename(PhotonFlux = par, Humidity = rh, Wind = wdspd, Rainfall = rain, MaxTemp = temp_max, TempRange = temp_range, tSunrise = trise, tSunset = tset, Day = julian_day, Flight = hylurgus_presence)
+dim(Insect_flight1)
+Insect_flight1$Flight<-as.factor(Insect_flight1$Flight)
+summary(Insect_flight1)
+Insect_flight1 <- as.data.frame(Insect_flight1)
+
+# boxplots of the numerical variables
+df.m <- melt(Insect_flight1)
+p1 <- ggplot(data = df.m, aes(x=variable, y=value)) + 
+             geom_boxplot(fill="gold1")
+p1 + facet_wrap( ~ variable, scales="free")
+
+# same but with different plots for days with and without flights of the target species
+p2 <- ggplot(data = df.m, aes(x=variable, y=value)) + 
+             geom_boxplot(aes(fill=Flight))
+p2 + facet_wrap( ~ variable, scales="free")
+
+sampled_df <- Insect_flight1 %>% sample_n(4500) # to get a random sample of 4500 rows of the data set (the maximum sample size for the shapiro.test() is 5000!!)
+s<-lapply(1:9, function(x) shapiro.test(sampled_df[,x])) # to perform the normality test on the random sample
+p_values<-c()
+for (i in 1:9){
+	p_values[i]<-s[[i]]$p.value
+}
+p_values_adjusted <- p.adjust(p_values, method = "holm") # to apply Holm's correction for multiple comparisons
+p_values_adjusted # all our p-values are <2.2e-16, so we can reject the hypothesis that the observed values for these variables are normally distributed
+
+# preparation of the data that will be used to build the second alternative BN (CLGBN 2)
+Insect_flight2<-Insect_flight %>% select(-c(site, temp, temp_min, rain_sum, hylurgus, hylastes, arhopalus, prionoplus, trial, hour))
+View(Insect_flight2)
+Insect_flight2<- Insect_flight2 %>% rename(PhotonFlux = par, Humidity = rh, Wind = wdspd, Rainfall = rain, MaxTemp = temp_max, TempRange = temp_range, tSunrise = trise, tSunset = tset, Day = julian_day, Flight = hylurgus_presence, Other_sp1 = hylastes_presence, Other_sp2 = arhopalus_presence)
+dim(Insect_flight2)
+Insect_flight2$Flight<-as.factor(Insect_flight2$Flight)
+Insect_flight2$Other_sp1<-as.factor(Insect_flight2$Other_sp1)
+Insect_flight2$Other_sp2<-as.factor(Insect_flight2$Other_sp2)
+summary(Insect_flight2)
+Insect_flight2 <- as.data.frame(Insect_flight2)
+
+# to generate bar plots for the biotic factors
+df2.m<-Insect_flight2
+df2.m$index <- row.names(df2.m)
+df2.m <- melt(Insect_flight2, id.vars = Insect_flight2$index)
+df2.m <- subset(df2.m, variable == "Flight" | variable == "Other_sp1" | variable == "Other_sp2")
+df2.m$value<-as.factor(df2.m$value)
+df2.m<-plyr::count(df2.m, vars = c("variable", "value")) # to get a table of the frequency of "Yes" and "No" for the categorical attributes
+df2.m
+
+ggplot(df2.m, aes(x=variable, y=freq, fill=value)) + geom_bar(stat="identity") + labs(x="Variables", y = "Absolute frequency") + theme(axis.text=element_text(size=12), axis.title=element_text(size=14)) + guides(fill=guide_legend(title="")) + scale_fill_viridis_d(option="C")
+
+# to set the model DAG (i.e. the one shown in the original publication) that will be used to compare the alternative DAGs
+model.dag = insect.flight1
+
+####  ####  ####  ####  ####  ####  ####  ####  ####  ####  ####  ####  ####
+####  CLGBN 1: INCLUDING ONLY THE VARIABLES PRESENT IN THE ORIGINAL DAG ####
+####  ####  ####  ####  ####  ####  ####  ####  ####  ####  ####  ####  ####
+
+# learning of the CLGBN from non-discretized data by score-based (hill-climbing) and hybrid (rsmax2) algorithms:
+
+# models 1, 2 and 3: hill-climbing, with 10 random restarts and 5 perturbed arcs in the new starting
+
+alt1_dag_1 = hc(Insect_flight1, score = "bic-cg", restart = 10, perturb = 5) # model 1: no restriction in the number of parents
+unlist(compare(alt1_dag_1, model.dag)) # to compare with the original DAG and get the list of true positives, false positives, and false negatives
+# tp: no. arcs in current also present in target; fp: no. arcs in current not present in target; tn (false negatives): no. arcs not in current but present in target
+# hill-climbing always returns a DAG, not a CPDAG; so the correct way of comparing it with another graph is to take the CPDAG for both
+unlist(compare(cpdag(alt1_dag_1), cpdag(model.dag))) # to compare 2 CPDAGs and get the list of true positives, false positives, and false negatives
+all.equal(alt1_dag_1, model.dag)
+hamming(alt1_dag_1, model.dag) # to compute the Hamming distance between the skeletons of the graphs (zero means a perfect match)
+shd(alt1_dag_1, model.dag) # to compute the structural Hamming distance between graphs
+dim(vstructs(alt1_dag_1)) # to check the number of v-structures
+nnodes(alt1_dag_1) # number of nodes
+narcs(alt1_dag_1) # number of arcs
+root.nodes(alt1_dag_1) # to identify the root nodes
+leaf.nodes(alt1_dag_1) # to identify the leaf nodes
+
+alt1_dag_2 = hc(Insect_flight1, score = "bic-cg", restart = 10, perturb = 5, maxp = 3) # model 2: limiting to 3 the number of parents
+unlist(compare(alt1_dag_2, model.dag))
+unlist(compare(cpdag(alt1_dag_2), cpdag(model.dag)))
+all.equal(alt1_dag_2, model.dag)
+hamming(alt1_dag_2, model.dag)
+shd(alt1_dag_2, model.dag)
+dim(vstructs(alt1_dag_2))
+nnodes(alt1_dag_2)
+narcs(alt1_dag_2)
+root.nodes(alt1_dag_2)
+leaf.nodes(alt1_dag_2)
+
+alt1_dag_3 = hc(Insect_flight1, score = "bic-cg", restart = 10, perturb = 5, maxp = 2) # model 3: limiting to 2 the number of parents
+unlist(compare(alt1_dag_3, model.dag))
+unlist(compare(cpdag(alt1_dag_3), cpdag(model.dag)))
+all.equal(alt1_dag_3, model.dag)
+hamming(alt1_dag_3, model.dag)
+shd(alt1_dag_3, model.dag)
+dim(vstructs(alt1_dag_3))
+nnodes(alt1_dag_3)
+narcs(alt1_dag_3)
+root.nodes(alt1_dag_3)
+leaf.nodes(alt1_dag_3)
+
+# models 4, 5 and 6: rsmax2, with "si.hiton.pc" as constraint-based algorithm to be used in the “restrict” phase and hill-climbing as score-based algorithm to be used in the “maximize” phase
+
+alt1_dag_4 = rsmax2(Insect_flight1, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5)) # model 4: no restriction in the number of parents
+unlist(compare(alt1_dag_4, model.dag))
+unlist(compare(cpdag(alt1_dag_4), cpdag(model.dag)))
+all.equal(alt1_dag_4, model.dag)
+hamming(alt1_dag_4, model.dag)
+shd(alt1_dag_4, model.dag)
+dim(vstructs(alt1_dag_4))
+nnodes(alt1_dag_4)
+narcs(alt1_dag_4)
+root.nodes(alt1_dag_4)
+leaf.nodes(alt1_dag_4)
+
+alt1_dag_5 = rsmax2(Insect_flight1, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 3)) # model 5: limiting to 3 the no. parents
+unlist(compare(alt1_dag_5, model.dag))
+unlist(compare(cpdag(alt1_dag_5), cpdag(model.dag)))
+all.equal(alt1_dag_5, model.dag)
+hamming(alt1_dag_5, model.dag)
+shd(alt1_dag_5, model.dag)
+dim(vstructs(alt1_dag_5))
+nnodes(alt1_dag_5)
+narcs(alt1_dag_5)
+root.nodes(alt1_dag_5)
+leaf.nodes(alt1_dag_5)
+
+alt1_dag_6 = rsmax2(Insect_flight1, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 2)) # model 6: limiting to 2 the no. parents
+unlist(compare(alt1_dag_6, model.dag))
+unlist(compare(cpdag(alt1_dag_6), cpdag(model.dag)))
+all.equal(alt1_dag_6, model.dag)
+hamming(alt1_dag_6, model.dag)
+shd(alt1_dag_6, model.dag)
+dim(vstructs(alt1_dag_6))
+nnodes(alt1_dag_6)
+narcs(alt1_dag_6)
+root.nodes(alt1_dag_6)
+leaf.nodes(alt1_dag_6)
+
+bn2 = bn.fit(alt1_dag_6, Insect_flight1, method = "mle") # ML  parameter  estimation (Bayesian parameter estimation is currently implemented only for discrete data)
+nparams(bn2) # to check the number of parameters of the BN
+
+# to plot the DAG of the CLGBN 1
+pp2 = graphviz.plot(bn2, layout="fdp", highlight = list(arcs = arcs(model.dag)))
+nodeRenderInfo(pp2) = list(fill = c("Rainfall" = "cyan", "Humidity" = "cyan", "TempRange" = "cyan", "MaxTemp" = "cyan", "Day" = "cyan", "Flight" = "yellow", "Wind" = "cyan","PhotonFlux" = "cyan", "tSunrise" = "cyan","tSunset" = "cyan"), fontsize = 18)
+renderGraph(pp2)
+
+# to inspect the main characteristics of the DAG of CLGBN 1
+mb(bn2, "Flight") # to get the Markov blanket of "Flight"
+sapply(nodes(bn2), function(node) mb(bn2, node = node))
+sapply(nodes(bn2), function(node) dsep(bn2, "Flight", node)) # to check if 'Flight' is d-separated from the other nodes (answer: FALSE for all nodes!!)
+bnlearn::children(bn2, "Flight")
+bnlearn::parents(bn2, "Flight")
+root.nodes(bn2)
+leaf.nodes(bn2)
+dim(vstructs(bn2)) # to obtain the number of v-structures present in the DAG (3 in this case)
+vstructs(bn2) # to get the v-structures present in the DAG
+
+####  ####  ####  ####  ####  ####  ####  ####
+####   CLGBN 2: INCLUDING NEW VARIABLES   ####
+####  ####  ####  ####  ####  ####  ####  ####
+
+# learning of the CLGBN from non-discretized data by score-based (hill-climbing) and hybrid (rsmax2) algorithms:
+
+# models 1, 2 and 3: hill-climbing, with 10 random restarts and 5 perturbed arcs in the new starting
+
+alt2_dag_1 = hc(Insect_flight2, score = "bic-cg", restart = 10, perturb = 5) # model 1: no restriction in the number of parents
+dim(vstructs(alt2_dag_1))
+nnodes(alt2_dag_1)
+narcs(alt2_dag_1)
+root.nodes(alt2_dag_1)
+leaf.nodes(alt2_dag_1)
+
+alt2_dag_2 = hc(Insect_flight2, score = "bic-cg", restart = 10, perturb = 5, maxp = 3) # model 2: limiting to 3 the number of parents
+dim(vstructs(alt2_dag_2))
+nnodes(alt2_dag_2)
+narcs(alt2_dag_2)
+root.nodes(alt2_dag_2)
+leaf.nodes(alt2_dag_2)
+
+alt2_dag_3 = hc(Insect_flight2, score = "bic-cg", restart = 10, perturb = 5, maxp = 2) # model 3: limiting to 2 the number of parents
+dim(vstructs(alt2_dag_3))
+nnodes(alt2_dag_3)
+narcs(alt2_dag_3)
+root.nodes(alt2_dag_3)
+leaf.nodes(alt2_dag_3)
+
+# models 4, 5 and 6: rsmax2, with "si.hiton.pc" as constraint-based algorithm to be used in the “restrict” phase and hill-climbing as score-based algorithm to be used in the “maximize” phase
+
+alt2_dag_4 = rsmax2(Insect_flight2, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5)) # model 4: no restriction in the number of parents
+dim(vstructs(alt2_dag_4))
+nnodes(alt2_dag_4)
+narcs(alt2_dag_4)
+root.nodes(alt2_dag_4)
+leaf.nodes(alt2_dag_4)
+
+alt2_dag_5 = rsmax2(Insect_flight2, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 3)) # model 5: limiting to 3 the no. parents
+dim(vstructs(alt2_dag_5))
+nnodes(alt2_dag_5)
+narcs(alt2_dag_5)
+root.nodes(alt2_dag_5)
+leaf.nodes(alt2_dag_5)
+
+alt2_dag_6 = rsmax2(Insect_flight2, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 2)) # model 6: limiting to 2 the no. parents
+dim(vstructs(alt2_dag_6))
+nnodes(alt2_dag_6)
+narcs(alt2_dag_6)
+root.nodes(alt2_dag_6)
+leaf.nodes(alt2_dag_6)
+
+bn3 = bn.fit(alt2_dag_6, Insect_flight2, method = "mle")
+nparams(bn3)
+
+# to plot the DAG of the CLGBN 2
+pp3 = graphviz.plot(bn3, layout="fdp", highlight = list(arcs = arcs(model.dag)))
+nodeRenderInfo(pp3) = list(fill = c("Rainfall" = "cyan", "Humidity" = "cyan", "TempRange" = "cyan", "MaxTemp" = "cyan", "Day" = "cyan", "Flight" = "yellow", "Wind" = "cyan","PhotonFlux" = "cyan", "tSunrise" = "cyan","tSunset" = "cyan", "Other_sp1" = "green", "Other_sp2" = "green"), fontsize = 18)
+renderGraph(pp3)
+
+# to inspect the main characteristics of the DAG of CLGBN 2
+mb(bn3, "Flight") # to get the Markov blanket of "Flight"
+sapply(nodes(bn3), function(node) mb(bn3, node = node))
+sapply(nodes(bn3), function(node) dsep(bn3, "Flight", node)) # to check if 'Flight' is d-separated from the other nodes (answer: TRUE for "Other_sp2", FALSE for the other nodes)
+bnlearn::children(bn3, "Flight")
+bnlearn::parents(bn3, "Flight")
+root.nodes(bn3)
+leaf.nodes(bn3)
+dim(vstructs(bn3)) # to obtain the number of v-structures present in the DAG (5 in this case)
+vstructs(bn3) # to get the v-structures present in the DAG
+
+# to check if the focus species is d-separated from the other two species
+dsep(bn3,"Flight","Other_sp1") # FALSE
+dsep(bn3,"Flight","Other_sp2") # TRUE
+
+# to check for all pairwise paths between the three insect species
+bnlearn::path(bn3, from = "Other_sp1", to = "Other_sp2") # FALSE
+bnlearn::path(bn3, from = "Other_sp2", to = "Other_sp1") # FALSE
+bnlearn::path(bn3, from = "Other_sp1", to = "Flight") # FALSE
+bnlearn::path(bn3, from = "Flight", to = "Other_sp1") # TRUE
+bnlearn::path(bn3, from = "Other_sp2", to = "Flight") # FALSE
+bnlearn::path(bn3, from = "Flight", to = "Other_sp2") # FALSE
+
+
+####################################################################
+####################   PROBABILISTIC INFERENCE  ####################
+####################################################################
+
+################### DISCRETE BN ###################
+
+#### EXACT INFERENCE
+
+junction = compile(as.grain(bn)) # to convert the BN into a gRain object and build the junction tree that will be used for inference
+
+junction$rip$cliques # to get all the cliques of the compiled network
+junction$rip$separators # to get all the separators of the compiled network
+
+# forward sampling not conditioning on any evidence
+samples.insect.flight <- cpdist(bn, nodes = nodes(bn), evidence = TRUE, n = 15)
+summary(samples.insect.flight)
+t <- table(samples.insect.flight[, c('Flight', 'Day')]) # e.g. joint probability of "Flight" and "Day"
+prop.table(t)
+
+# first query: probability of a sunny and windy day knowing that the insect is flying
+evidence1 = setEvidence(junction, nodes = "Flight", states = "yes") # to set the evidence ('Flight' = 'Yes')
+pEvidence(evidence1) # to get the probability of this evidence (p = 0.106)
+query1j = querygrain(evidence1, nodes = c("Wind","PhotonFlux"), type = "joint") # to perform the conditional probability query and get the joint distribution of "Wind" and "PhotonFlux"
+query1j
+tp1 <- query1j['>=1704','>=4.1']
+tp1
+query1m = querygrain(evidence1, nodes = c("Wind","PhotonFlux"), type = "marginal") # to perform the conditional probability query and get the marginal distributions of "Wind" and "PhotonFlux"
+query1m
+
+# second query: probability of warm day knowing that the insect is flying and we are at the end of the year
+evidence2 = setEvidence(junction, nodes = c("Flight","Day"), states = c("yes",">=344")) # to set the evidence ('Flight' = 'Yes', 'Day' >=344)
+pEvidence(evidence2) # p = 0.003074
+query2 = querygrain(evidence2, nodes = "MaxTemp") # to perform the conditional probability query
+query2
+tp2<-query2$MaxTemp[">=17.5"]
+tp2
+
+# third query: probability of a warm, humid day knowing that the insect is not flying and we are in the first semester of the year
+evidence3 = setEvidence(junction, nodes = c("Flight","Day"), states = c("no","<344")) # to set the evidence ('Flight' = 'No', 'Day' <344)
+pEvidence(evidence3) # 0.783144
+query3j = querygrain(evidence3, nodes = c("MaxTemp","Humidity"), type = "joint") # to perform the conditional probability query and get the joint distribution of "MaxTemp" and "Humidity"
+query3j
+tp3 <- query3j['>=93','>=17.5']
+tp3
+query3m = querygrain(evidence3, nodes = c("MaxTemp","Humidity"), type = "marginal") # to perform the conditional probability query and get the marginal distributions of "MaxTemp" and "Humidity"
+query3m
+
+# fourth query: probability of insect flying knowing that is a few minutes after sunrise and it is raining at the end of the year
+evidence4 = setEvidence(junction, nodes = c("tSunrise","Rainfall","Day"), states = c("<19",">=0.1",">=344")) # to set the evidence for 'tSunrise', 'Rainfall' and 'Day'
+pEvidence(evidence4) # 0.0007049093
+query4 = querygrain(evidence4, nodes = c("Flight")) # to perform the conditional probability query
+query4
+tp4 <- query4$Flight['yes']
+tp4
+
+#### APPROXIMATE INFERENCE
+
+# first query: probability of a sunny and windy day knowing that the target species is flying
+p1b = cpquery(bn, event = (Wind == ">=4.1") & (PhotonFlux == ">=1704"), evidence = (Flight == "yes"), method = "ls", n = 10^6) # logic sampling method
+p1b
+ 
+p1c = cpquery(bn, event = (Wind == ">=4.1") & (PhotonFlux == ">=1704"), evidence = list(Flight = "yes"), method = "lw", n = 10^6) # likelihood weighting method
+p1c
+
+# second query: probability of warm day knowing that the target species is flying and we are at the end of the year
+p2b = cpquery(bn, event = (MaxTemp == ">=17.5"), evidence = (Flight == "yes") & (Day == ">=344"), method = "ls", n = 10^6)
+p2b
+
+p2c = cpquery(bn, event = (MaxTemp == ">=17.5"), evidence = list(Flight = "yes", Day = ">=344"), method = "lw", n = 10^6)
+p2c
+
+# third query: probability of a warm, humid day knowing that the target species is not flying and we are in the first semester of the year
+p3b = cpquery(bn, event = (MaxTemp == ">=17.5") & (Humidity == ">=93"), evidence = (Flight == "no") & (Day == "<344"), method = "ls", n = 10^6)
+p3b
+
+p3c = cpquery(bn, event = (MaxTemp == ">=17.5") & (Humidity == ">=93"), evidence = list(Flight = "no", Day = "<344"), method = "lw", n = 10^6)
+p3c
+
+# fourth query: probability of the target species flying knowing that it is a few minutes after sunrise and it is raining at the end of the year
+p4b = cpquery(bn, event = (Flight == "yes"), evidence = (tSunrise == "<19") & (Rainfall == ">=0.1") & (Day == ">=344"), method = "ls", n = 10^6)
+p4b
+
+p4c = cpquery(bn, event = (Flight == "yes"), evidence = list(tSunrise = "<19", Rainfall = ">=0.1", Day = ">=344"), method = "lw", n = 10^6)
+p4c
+
+################### CLGBN 1 ###################
+
+#### APPROXIMATE INFERENCE
+
+# first query: probability of a sunny and windy day knowing that the target species is flying
+p1.1_ls = cpquery(bn2, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = (Flight == "Yes"), method = "ls")
+p1.1_ls
+
+p1.1_lw = cpquery(bn2, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = list(Flight = "Yes"), method = "lw")
+p1.1_lw
+
+# second query: probability of warm day knowing that the target species is flying and we are at the end of the year
+p2.1_ls = cpquery(bn2, event = ((MaxTemp >=17.5)), evidence = ((Flight == "Yes") & (Day >=344)), method = "ls")
+p2.1_ls
+
+p2.1_lw = cpquery(bn2, event = ((MaxTemp >=17.5)), evidence = list(Flight = "Yes", Day = c(344,366)), method = "lw") # Interval 344-366 for "Day"
+p2.1_lw
+
+# third query: probability of a warm, humid day knowing that the target species is not flying and we are in the first semester of the year
+p3.1_ls = cpquery(bn2, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = ((Flight == "No") & (Day <344)), method = "ls")
+p3.1_ls
+
+p3.1_lw = cpquery(bn2, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = list(Flight = "No", Day = c(1,343)), method = "lw")
+p3.1_lw
+
+# fourth query: probability that the target species is flying knowing that it is a few minutes after sunrise and it is raining at the end of the year
+p4.1_ls = cpquery(bn2, event = ((Flight == "Yes")), evidence = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), method = "ls")
+p4.1_ls
+
+cpquery(bn2, event = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), evidence = TRUE) # the probability of this event is equal to zero!!
+
+p4.1_lw = cpquery(bn2, event = ((Flight == "Yes")), evidence = list(tSunrise = c(0,19), Rainfall = c(0.1,0.3), Day = c(344,366)), method = "lw")
+p4.1_lw
+
+################### CLGBN 2 ###################
+
+#### APPROXIMATE INFERENCE
+
+# first query: probability of a sunny and windy day knowing that the target species is flying
+p1.2_ls = cpquery(bn3, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = (Flight == "Yes"), method = "ls")
+p1.2_ls
+
+p1.2_lw = cpquery(bn3, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = list(Flight = "Yes"), method = "lw")
+p1.2_lw
+
+# second query: probability of warm day knowing that the target species is flying and we are at the end of the year
+p2.2_ls = cpquery(bn3, event = ((MaxTemp >=17.5)), evidence = ((Flight == "Yes") & (Day >=344)), method = "ls")
+p2.2_ls
+
+p2.2_lw = cpquery(bn3, event = ((MaxTemp >=17.5)), evidence = list(Flight = "Yes", Day = c(344,366)), method = "lw") # Interval 344-366 for "Day"
+p2.2_lw
+
+# third query: probability of a warm, humid day knowing that the target species is not flying and we are in the first semester of the year
+p3.2_ls = cpquery(bn3, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = ((Flight == "No") & (Day <344)), method = "ls")
+p3.2_ls
+
+p3.2_lw = cpquery(bn3, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = list(Flight = "No", Day = c(1,343)), method = "lw")
+p3.2_lw
+
+# fourth query: probability that the target species is flying knowing that it is a few minutes after sunrise and it is raining at the end of the year
+p4.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), method = "ls")
+p4.2_ls
+
+cpquery(bn3, event = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), evidence = TRUE) # the probability of this event is equal to zero!!
+
+p4.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(tSunrise = c(0,19), Rainfall = c(0.1,0.3), Day = c(344,366)), method = "lw")
+p4.2_lw
+
+# fifth query: probability that the target insect species is flying knowing that the other two species are also flying
+p5.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((Other_sp1 == "Yes") & (Other_sp2 == "Yes")), method = "ls")
+p5.2_ls
+
+cpquery(bn3, event = ((Other_sp1 == "Yes") & (Other_sp2 == "Yes")), evidence = TRUE) # to check the probability that the other species are flying given no evidence (p = 8e-04)
+
+p5.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(Other_sp1 = "Yes", Other_sp2 = "Yes"), method = "lw")
+p5.2_lw
+
+# sixth query: probability that the target insect species is flying knowing that the other two species are not flying
+p6.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((Other_sp1 == "No") & (Other_sp2 == "No")), method = "ls")
+p6.2_ls
+
+cpquery(bn3, event = ((Other_sp1 == "No") & (Other_sp2 == "No")), evidence = TRUE) # to check the probability that the other species are not flying given no evidence (p = 0.9546)
+
+p6.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(Other_sp1 = "No", Other_sp2 = "No"), method = "lw")
+p6.2_lw
+
+# seventh query: probability that the target insect species is flying knowing that none of the other species is flying and we are in a sunny, warm day of the first semester
+p7.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((Other_sp1 == "No") & (Other_sp2 == "No") & (PhotonFlux >=1704) & (MaxTemp >=17.5) & (Day <344)), method = "ls")
+p7.2_ls
+
+p7.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(Other_sp1 = "No", Other_sp2 = "No", PhotonFlux = c(1704,2100), MaxTemp = c(17.5,32.4), Day = c(344,366)), method = "lw")
+p7.2_lw
