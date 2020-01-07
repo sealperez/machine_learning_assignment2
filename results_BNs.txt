@@ -1,0 +1,943 @@
+####################################################################
+##### ANALYSIS OF THE BAYESIAN NETWORK PROPOSED BY THE AUTHORS #####
+####################################################################
+
+> insect.flight1
+
+  Random/Generated Bayesian network
+
+  model:
+   [Flight][Day|Flight][MaxTemp|Day:Flight][Humidity|MaxTemp:Flight][PhotonFlux|MaxTemp:Flight][Rainfall|Humidity:Flight][TempRange|Humidity:Flight]
+   [Wind|Flight:PhotonFlux][tSunset|Flight:PhotonFlux][tSunrise|Flight:tSunset]
+  nodes:                                 10 
+  arcs:                                  17 
+    undirected arcs:                     0 
+    directed arcs:                       17 
+  average markov blanket size:           3.40 
+  average neighbourhood size:            3.40 
+  average branching factor:              1.70 
+
+  generation algorithm:                  Empty
+ 
+> narcs(insect.flight1) # to get the total number of arcs
+[1] 17
+
+> all.equal(cpdag(insect.flight1), insect.flight1) # to check if our DAG is a CPDAG
+[1] "Different number of directed/undirected arcs"
+
+> root.nodes(insect.flight1) # to identify the root nodes (i.e. nodes without parents)
+[1] "Flight"
+> leaf.nodes(insect.flight1) # to identify the leaf nodes (i.e. nodes without children)
+[1] "Rainfall"  "TempRange" "Wind"      "tSunrise" 
+
+> mb(insect.flight1, "Flight") # to check that the Markov blanket of "Flight" includes all other factors
+[1] "Rainfall"   "Humidity"   "TempRange"  "MaxTemp"    "Day"        "Wind"       "PhotonFlux" "tSunrise"   "tSunset"   
+> sapply(nodes(insect.flight1), function(node) mb(insect.flight1, node = node)) # to get the Markov blankets for all nodes
+$Rainfall
+[1] "Humidity" "Flight"  
+
+$Humidity
+[1] "Rainfall"  "TempRange" "MaxTemp"   "Flight"   
+
+$TempRange
+[1] "Humidity" "Flight"  
+
+$MaxTemp
+[1] "Humidity"   "Day"        "Flight"     "PhotonFlux"
+
+$Day
+[1] "MaxTemp" "Flight" 
+
+$Flight
+[1] "Rainfall"   "Humidity"   "TempRange"  "MaxTemp"    "Day"        "Wind"       "PhotonFlux" "tSunrise"   "tSunset"   
+
+$Wind
+[1] "Flight"     "PhotonFlux"
+
+$PhotonFlux
+[1] "MaxTemp" "Flight"  "Wind"    "tSunset"
+
+$tSunrise
+[1] "Flight"  "tSunset"
+
+$tSunset
+[1] "Flight"     "PhotonFlux" "tSunrise"  
+
+> sapply(nodes(insect.flight1), function(node) dsep(insect.flight1, "Flight", node)) # to check if 'Flight' is d-separated from the other nodes (answer: FALSE in all cases!!)
+  Rainfall   Humidity  TempRange    MaxTemp        Day     Flight       Wind PhotonFlux   tSunrise    tSunset 
+     FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE 
+> bnlearn::children(insect.flight1, "Flight") # to check that the children of "Flight" are all other factors
+[1] "Rainfall"   "Humidity"   "TempRange"  "MaxTemp"    "Day"        "Wind"       "PhotonFlux" "tSunrise"   "tSunset"   
+> bnlearn::parents(insect.flight1, "Flight") # to check that "Flight" has no parents
+character(0)
+
+> dim(vstructs(insect.flight1)) # to obtain the number of v-structures present in the DAG (0 in this case!!)
+[1] 0 3
+> vstructs(insect.flight1) # to get the v-structures present in the DAG (none in this case)
+     X Z Y
+
+> nparams(bn) # to get the number of parameters of the BN
+[1] 131
+
+####################################################################
+##########   ANALYSIS OF ALTERNATIVE BAYESIAN NETWORKS    ##########
+####################################################################
+
+# Normality test
+> p_values_adjusted # all our p-values are <2.2e-16, so we can reject the hypothesis that the observed values for these variables are normally distributed
+[1] 1.243718e-61 4.106011e-37 4.386704e-46 1.270569e-88 4.557004e-10 2.310955e-52 4.130108e-35 1.301284e-34 5.169784e-63
+
+
+####  CLGBN 1: INCLUDING ONLY THE VARIABLES PRESENT IN THE ORIGINAL DAG ####
+
+# learning of the CLGBN from non-discretized data by score-based (hill-climbing) and hybrid (rsmax2) algorithms:
+# models 1, 2 and 3: hill-climbing, with 10 random restarts and 5 perturbed arcs in the new starting
+
+> alt1_dag_1 = hc(Insect_flight1, score = "bic-cg", restart = 10, perturb = 5) # model 1: no restriction in the number of parents
+> unlist(compare(alt1_dag_1, model.dag)) # to compare with the original DAG and get the list of true positives, false positives, and false negatives
+tp fp fn 
+11  6 20 
+> # tp: no. arcs in current also present in target; fp: no. arcs in current not present in target; tn (false negatives): no. arcs not in current but present in target
+> # hill-climbing always returns a DAG, not a CPDAG; so the correct way of comparing it with another graph is to take the CPDAG for both
+> unlist(compare(cpdag(alt1_dag_1), cpdag(model.dag))) # to compare 2 CPDAGs and get the list of true positives, false positives, and false negatives
+tp fp fn 
+ 0 17 31 
+> all.equal(alt1_dag_1, model.dag)
+[1] "Different number of directed/undirected arcs"
+> hamming(alt1_dag_1, model.dag) # to compute the Hamming distance between the skeletons of the graphs (zero means a perfect match)
+[1] 18
+> shd(alt1_dag_1, model.dag) # to compute the structural Hamming distance between graphs
+[1] 33
+> dim(vstructs(alt1_dag_1)) # to check the number of v-structures
+[1] 36  3
+> nnodes(alt1_dag_1) # number of nodes
+[1] 10
+> narcs(alt1_dag_1) # number of arcs
+[1] 31
+> root.nodes(alt1_dag_1) # to identify the root nodes
+[1] "Day"    "Flight"
+> leaf.nodes(alt1_dag_1) # to identify the leaf nodes
+[1] "MaxTemp"
+> alt1_dag_1
+
+  Bayesian network learned via Score-based methods
+
+  model:
+   [Day][Flight][Humidity|Day:Flight][Wind|Humidity:Flight][PhotonFlux|Humidity:Wind:Day:Flight][Rainfall|Humidity:Wind:Flight]
+   [tSunrise|PhotonFlux:Rainfall:Day:Flight][TempRange|PhotonFlux:Humidity:Wind:Rainfall:tSunrise][tSunset|PhotonFlux:Wind:tSunrise:Day:Flight]
+   [MaxTemp|PhotonFlux:Humidity:TempRange:tSunset:Day:Flight]
+  nodes:                                 10 
+  arcs:                                  31 
+    undirected arcs:                     0 
+    directed arcs:                       31 
+  average markov blanket size:           8.20 
+  average neighbourhood size:            6.20 
+  average branching factor:              3.10 
+
+  learning algorithm:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  1269 
+  optimized:                             TRUE 
+
+> alt1_dag_2 = hc(Insect_flight1, score = "bic-cg", restart = 10, perturb = 5, maxp = 3) # model 2: limiting to 3 the number of parents
+> unlist(compare(alt1_dag_2, model.dag))
+tp fp fn 
+11  6 12 
+> unlist(compare(cpdag(alt1_dag_2), cpdag(model.dag)))
+tp fp fn 
+ 1 16 22 
+> all.equal(alt1_dag_2, model.dag)
+[1] "Different number of directed/undirected arcs"
+> hamming(alt1_dag_2, model.dag)
+[1] 12
+> shd(alt1_dag_2, model.dag)
+[1] 25
+> dim(vstructs(alt1_dag_2))
+[1] 10  3
+> nnodes(alt1_dag_2)
+[1] 10
+> narcs(alt1_dag_2)
+[1] 23
+> root.nodes(alt1_dag_2)
+[1] "Day"    "Flight"
+> leaf.nodes(alt1_dag_2)
+[1] "Rainfall"  "TempRange" "tSunset"  
+> alt1_dag_2
+
+  Bayesian network learned via Score-based methods
+
+  model:
+   [Day][Flight][Humidity|Day:Flight][MaxTemp|Humidity:Day:Flight][Wind|Humidity:MaxTemp:Flight][PhotonFlux|Wind:MaxTemp:Day]
+   [Rainfall|Humidity:Wind:Flight][tSunrise|PhotonFlux:Day:Flight][TempRange|Humidity:Wind:tSunrise][tSunset|PhotonFlux:tSunrise:Flight]
+  nodes:                                 10 
+  arcs:                                  23 
+    undirected arcs:                     0 
+    directed arcs:                       23 
+  average markov blanket size:           5.60 
+  average neighbourhood size:            4.60 
+  average branching factor:              2.30 
+
+  learning algorithm:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  1188 
+  optimized:                             TRUE 
+
+> alt1_dag_3 = hc(Insect_flight1, score = "bic-cg", restart = 10, perturb = 5, maxp = 2) # model 3: limiting to 2 the number of parents
+> unlist(compare(alt1_dag_3, model.dag))
+tp fp fn 
+ 9  8  7 
+> unlist(compare(cpdag(alt1_dag_3), cpdag(model.dag)))
+tp fp fn 
+ 0 17 16 
+> all.equal(alt1_dag_3, model.dag)
+[1] "Different number of directed/undirected arcs"
+> hamming(alt1_dag_3, model.dag)
+[1] 9
+> shd(alt1_dag_3, model.dag)
+[1] 21
+> dim(vstructs(alt1_dag_3))
+[1] 5 3
+> nnodes(alt1_dag_3)
+[1] 10
+> narcs(alt1_dag_3)
+[1] 16
+> root.nodes(alt1_dag_3)
+[1] "Flight"
+> leaf.nodes(alt1_dag_3)
+[1] "Rainfall"  "TempRange" "tSunset"   "Day" 
+> alt1_dag_3
+
+  Bayesian network learned via Score-based methods
+
+  model:
+   [Flight][MaxTemp|Flight][Humidity|MaxTemp][Wind|Humidity:Flight][Rainfall|Humidity:Flight][Day|Humidity:MaxTemp][PhotonFlux|Wind:MaxTemp]
+   [tSunrise|PhotonFlux:Flight][TempRange|Humidity:tSunrise][tSunset|PhotonFlux:tSunrise]
+  nodes:                                 10 
+  arcs:                                  16 
+    undirected arcs:                     0 
+    directed arcs:                       16 
+  average markov blanket size:           4.00 
+  average neighbourhood size:            3.20 
+  average branching factor:              1.60 
+
+  learning algorithm:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  1125 
+  optimized:                             TRUE      
+
+# models 4, 5 and 6: rsmax2, with "si.hiton.pc" as constraint-based algorithm to be used in the “restrict” phase and hill-climbing as score-based algorithm to be used in the “maximize” phase
+
+> alt1_dag_4 = rsmax2(Insect_flight1, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5)) # model 4: no restriction in the number of parents
+> unlist(compare(alt1_dag_4, model.dag))
+tp fp fn 
+11  6 13 
+> unlist(compare(cpdag(alt1_dag_4), cpdag(model.dag)))
+tp fp fn 
+ 0 17 24 
+> all.equal(alt1_dag_4, model.dag)
+[1] "Different number of directed/undirected arcs"
+> hamming(alt1_dag_4, model.dag)
+[1] 11
+> shd(alt1_dag_4, model.dag)
+[1] 26
+> dim(vstructs(alt1_dag_4))
+[1] 30  3
+> nnodes(alt1_dag_4)
+[1] 10
+> narcs(alt1_dag_4)
+[1] 24
+> root.nodes(alt1_dag_4)
+[1] "Day"    "Flight"
+> leaf.nodes(alt1_dag_4)
+[1] "MaxTemp"
+> alt1_dag_4
+
+  Bayesian network learned via Hybrid methods
+
+  model:
+   [Day][Flight][Rainfall|Flight][tSunrise|Flight][PhotonFlux|tSunrise:Day:Flight][Wind|PhotonFlux:Flight]
+   [Humidity|PhotonFlux:Wind:Rainfall:Day:Flight][tSunset|PhotonFlux:Wind:tSunrise:Flight][TempRange|Humidity:tSunrise]
+   [MaxTemp|PhotonFlux:Humidity:TempRange:tSunset:Day:Flight]
+  nodes:                                 10 
+  arcs:                                  24 
+    undirected arcs:                     0 
+    directed arcs:                       24 
+  average markov blanket size:           7.60 
+  average neighbourhood size:            4.80 
+  average branching factor:              2.40 
+
+  learning algorithm:                    Two-Phase Restricted Maximization 
+  constraint-based method:               Semi-Interleaved HITON-PC 
+  conditional independence test:         Mutual Information (cond. Gauss.) 
+  score-based method:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  alpha threshold:                       0.01 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  3211 
+  optimized:                             TRUE 
+
+> alt1_dag_5 = rsmax2(Insect_flight1, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 3)) # model 5: limiting to 3 the no. parents
+> unlist(compare(alt1_dag_5, model.dag))
+tp fp fn 
+13  4  9 
+> unlist(compare(cpdag(alt1_dag_5), cpdag(model.dag)))
+tp fp fn 
+ 1 16 21 
+> all.equal(alt1_dag_5, model.dag)
+[1] "Different number of directed/undirected arcs"
+> hamming(alt1_dag_5, model.dag)
+[1] 11
+> shd(alt1_dag_5, model.dag)
+[1] 24
+> dim(vstructs(alt1_dag_5))
+[1] 8 3
+> nnodes(alt1_dag_5)
+[1] 10
+> narcs(alt1_dag_5)
+[1] 22
+> root.nodes(alt1_dag_5)
+[1] "Day"    "Flight"
+> leaf.nodes(alt1_dag_5)
+[1] "Rainfall"  "TempRange"
+> alt1_dag_5
+
+  Bayesian network learned via Hybrid methods
+
+  model:
+   [Day][Flight][Humidity|Day:Flight][Rainfall|Humidity:Flight][MaxTemp|Humidity:Day:Flight][PhotonFlux|Humidity:MaxTemp:Day]
+   [Wind|PhotonFlux:Humidity:Flight][tSunset|PhotonFlux:Wind:Flight][tSunrise|PhotonFlux:tSunset:Flight][TempRange|Humidity:MaxTemp:tSunrise]
+  nodes:                                 10 
+  arcs:                                  22 
+    undirected arcs:                     0 
+    directed arcs:                       22 
+  average markov blanket size:           5.20 
+  average neighbourhood size:            4.40 
+  average branching factor:              2.20 
+
+  learning algorithm:                    Two-Phase Restricted Maximization 
+  constraint-based method:               Semi-Interleaved HITON-PC 
+  conditional independence test:         Mutual Information (cond. Gauss.) 
+  score-based method:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  alpha threshold:                       0.01 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  3123 
+  optimized:                             TRUE 
+
+> alt1_dag_6 = rsmax2(Insect_flight1, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 2)) # model 6: limiting to 2 the no. parents
+> unlist(compare(alt1_dag_6, model.dag))
+tp fp fn 
+ 9  8  8 
+> unlist(compare(cpdag(alt1_dag_6), cpdag(model.dag)))
+tp fp fn 
+ 2 15 15 
+> all.equal(alt1_dag_6, model.dag)
+[1] "Different arc sets"
+> hamming(alt1_dag_6, model.dag)
+[1] 8
+> shd(alt1_dag_6, model.dag)
+[1] 19
+> dim(vstructs(alt1_dag_6))
+[1] 3 3
+> nnodes(alt1_dag_6)
+[1] 10
+> narcs(alt1_dag_6)
+[1] 17
+> root.nodes(alt1_dag_6)
+[1] "Flight"
+> leaf.nodes(alt1_dag_6)
+[1] "Rainfall"  "TempRange" "tSunset"   "Day" 
+> alt1_dag_6
+
+  Bayesian network learned via Hybrid methods
+
+  model:
+   [Flight][Humidity|Flight][Wind|Humidity:Flight][Rainfall|Humidity:Flight][MaxTemp|Humidity:Flight][PhotonFlux|Wind:MaxTemp][Day|Humidity:MaxTemp]
+   [tSunrise|PhotonFlux:Flight][TempRange|Humidity:tSunrise][tSunset|PhotonFlux:tSunrise]
+  nodes:                                 10 
+  arcs:                                  17 
+    undirected arcs:                     0 
+    directed arcs:                       17 
+  average markov blanket size:           4.00 
+  average neighbourhood size:            3.40 
+  average branching factor:              1.70 
+
+  learning algorithm:                    Two-Phase Restricted Maximization 
+  constraint-based method:               Semi-Interleaved HITON-PC 
+  conditional independence test:         Mutual Information (cond. Gauss.) 
+  score-based method:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  alpha threshold:                       0.01 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  3107 
+  optimized:                             TRUE 
+
+# To fit the BN using alt1_dag_6
+> bn2 = bn.fit(alt1_dag_6, Insect_flight1, method = "mle") # ML  parameter  estimation (Bayesian parameter estimation is currently implemented only for discrete data)
+> nparams(bn2) # to check the number of parameters of the BN
+
+# To inspect the main characteristics of the DAG of CLGBN 1
+> mb(bn2, "Flight") # to get the Markov blanket of "Flight"
+[1] "PhotonFlux" "Humidity"   "Wind"       "Rainfall"   "MaxTemp"    "tSunrise"  
+> sapply(nodes(bn2), function(node) mb(bn2, node = node))
+$PhotonFlux
+[1] "Wind"     "MaxTemp"  "tSunrise" "tSunset"  "Flight"  
+
+$Humidity
+[1] "Wind"      "Rainfall"  "MaxTemp"   "TempRange" "tSunrise"  "Day"       "Flight"   
+
+$Wind
+[1] "PhotonFlux" "Humidity"   "MaxTemp"    "Flight"    
+
+$Rainfall
+[1] "Humidity" "Flight"  
+
+$MaxTemp
+[1] "PhotonFlux" "Humidity"   "Wind"       "Day"        "Flight"    
+
+$TempRange
+[1] "Humidity" "tSunrise"
+
+$tSunrise
+[1] "PhotonFlux" "Humidity"   "TempRange"  "tSunset"    "Flight"    
+
+$tSunset
+[1] "PhotonFlux" "tSunrise"  
+
+$Day
+[1] "Humidity" "MaxTemp" 
+
+$Flight
+[1] "PhotonFlux" "Humidity"   "Wind"       "Rainfall"   "MaxTemp"    "tSunrise"  
+
+> sapply(nodes(bn2), function(node) dsep(bn2, "Flight", node)) # to check if 'Flight' is d-separated from the other nodes (answer: FALSE for all nodes!!)
+PhotonFlux   Humidity       Wind   Rainfall    MaxTemp  TempRange   tSunrise    tSunset        Day     Flight 
+     FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE 
+> bnlearn::children(bn2, "Flight")
+[1] "Humidity" "Wind"     "Rainfall" "MaxTemp"  "tSunrise"
+> bnlearn::parents(bn2, "Flight")
+character(0)
+> root.nodes(bn2)
+[1] "Flight"
+> leaf.nodes(bn2)
+[1] "Rainfall"  "TempRange" "tSunset"   "Day"      
+> dim(vstructs(bn2)) # to obtain the number of v-structures present in the DAG (3 in this case)
+[1] 3 3
+> vstructs(bn2) # to get the v-structures present in the DAG
+     X            Z            Y         
+[1,] "Wind"       "PhotonFlux" "MaxTemp" 
+[2,] "Humidity"   "TempRange"  "tSunrise"
+[3,] "PhotonFlux" "tSunrise"   "Flight"  
+>nparams(bn2)
+[1] 45
+
+
+####   CLGBN 2: INCLUDING NEW VARIABLES   ####
+
+# learning of the CLGBN from non-discretized data by score-based (hill-climbing) and hybrid (rsmax2) algorithms:
+# models 1, 2 and 3: hill-climbing, with 10 random restarts and 5 perturbed arcs in the new starting
+
+> alt2_dag_1 = hc(Insect_flight2, score = "bic-cg", restart = 10, perturb = 5) # model 1: no restriction in the number of parents
+> dim(vstructs(alt2_dag_1))
+[1] 59  3
+> nnodes(alt2_dag_1)
+[1] 12
+> narcs(alt2_dag_1)
+[1] 38
+> root.nodes(alt2_dag_1)
+[1] "Flight"
+> leaf.nodes(alt2_dag_1)
+[1] "MaxTemp"
+> alt2_dag_1
+
+  Bayesian network learned via Score-based methods
+
+  model:
+   [Flight][Other_sp1|Flight][Wind|Flight:Other_sp1][Rainfall|Flight:Other_sp1][Other_sp2|Other_sp1][Day|Other_sp1:Other_sp2]
+   [Humidity|Wind:Rainfall:Day:Flight][PhotonFlux|Humidity:Wind:Flight:Other_sp2][tSunrise|PhotonFlux:Rainfall:Day:Flight:Other_sp2]
+   [TempRange|PhotonFlux:Humidity:Wind:Rainfall:tSunrise][tSunset|PhotonFlux:Wind:tSunrise:Flight:Other_sp2]
+   [MaxTemp|PhotonFlux:Humidity:TempRange:tSunset:Day:Flight:Other_sp2]
+  nodes:                                 12 
+  arcs:                                  38 
+    undirected arcs:                     0 
+    directed arcs:                       38 
+  average markov blanket size:           9.33 
+  average neighbourhood size:            6.33 
+  average branching factor:              3.17 
+
+  learning algorithm:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  1738 
+  optimized:                             TRUE 
+
+> alt2_dag_2 = hc(Insect_flight2, score = "bic-cg", restart = 10, perturb = 5, maxp = 3) # model 2: limiting to 3 the number of parents
+> dim(vstructs(alt2_dag_2))
+[1] 14  3
+> nnodes(alt2_dag_2)
+[1] 12
+> narcs(alt2_dag_2)
+[1] 27
+> root.nodes(alt2_dag_2)
+[1] "Flight"
+> leaf.nodes(alt2_dag_2)
+[1] "TempRange" "tSunset"  
+> alt2_dag_2
+
+  Bayesian network learned via Score-based methods
+
+  model:
+   [Flight][Other_sp1|Flight][Wind|Flight:Other_sp1][Rainfall|Flight:Other_sp1][Other_sp2|Other_sp1][Humidity|Wind:Rainfall:Flight]
+   [Day|Humidity:Other_sp1:Other_sp2][MaxTemp|Humidity:Day:Flight][PhotonFlux|Wind:MaxTemp:Other_sp2][tSunrise|PhotonFlux:Flight:Other_sp2]
+   [TempRange|Humidity:Wind:tSunrise][tSunset|PhotonFlux:tSunrise:Other_sp2]
+  nodes:                                 12 
+  arcs:                                  27 
+    undirected arcs:                     0 
+    directed arcs:                       27 
+  average markov blanket size:           6.33 
+  average neighbourhood size:            4.50 
+  average branching factor:              2.25 
+
+  learning algorithm:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  1584 
+  optimized:                             TRUE 
+
+> alt2_dag_3 = hc(Insect_flight2, score = "bic-cg", restart = 10, perturb = 5, maxp = 2) # model 3: limiting to 2 the number of parents
+> dim(vstructs(alt2_dag_3))
+[1] 5 3
+> nnodes(alt2_dag_3)
+[1] 12
+> narcs(alt2_dag_3)
+[1] 20
+> root.nodes(alt2_dag_3)
+[1] "Other_sp2"
+> leaf.nodes(alt2_dag_3)
+[1] "Wind"      "TempRange" "tSunset"  
+> alt2_dag_3
+
+  Bayesian network learned via Score-based methods
+
+  model:
+   [Other_sp2][Other_sp1|Other_sp2][Day|Other_sp1:Other_sp2][Flight|Other_sp1][Rainfall|Flight:Other_sp1][Humidity|Rainfall:Flight]
+   [MaxTemp|Humidity:Day][PhotonFlux|MaxTemp:Other_sp2][Wind|PhotonFlux:Humidity][tSunrise|PhotonFlux:Flight][TempRange|Humidity:tSunrise]
+   [tSunset|PhotonFlux:tSunrise]
+  nodes:                                 12 
+  arcs:                                  20 
+    undirected arcs:                     0 
+    directed arcs:                       20 
+  average markov blanket size:           4.17 
+  average neighbourhood size:            3.33 
+  average branching factor:              1.67 
+
+  learning algorithm:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  1430 
+  optimized:                             TRUE 
+
+# models 4, 5 and 6: rsmax2, with "si.hiton.pc" as constraint-based algorithm to be used in the “restrict” phase and hill-climbing as score-based algorithm to be used in the “maximize” phase
+
+> alt2_dag_4 = rsmax2(Insect_flight2, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5)) # model 4: no restriction in the number of parents
+> dim(vstructs(alt2_dag_4))
+[1] 23  3
+> nnodes(alt2_dag_4)
+[1] 12
+> narcs(alt2_dag_4)
+[1] 26
+> root.nodes(alt2_dag_4)
+[1] "Flight"    "Other_sp2"
+> leaf.nodes(alt2_dag_4)
+[1] "PhotonFlux" "Rainfall"   "MaxTemp"   
+> alt2_dag_4
+
+  Bayesian network learned via Hybrid methods
+
+  model:
+   [Flight][Other_sp2][tSunset|Flight:Other_sp2][Other_sp1|Flight][Wind|tSunset:Flight:Other_sp1][Rainfall|Flight:Other_sp1]
+   [tSunrise|tSunset:Flight:Other_sp2][Day|Other_sp1:Other_sp2][TempRange|tSunrise][Humidity|Wind:TempRange:Day:Flight]
+   [PhotonFlux|Humidity:Flight:Other_sp2][MaxTemp|Humidity:tSunset:Day:Flight:Other_sp2]
+  nodes:                                 12 
+  arcs:                                  26 
+    undirected arcs:                     0 
+    directed arcs:                       26 
+  average markov blanket size:           6.17 
+  average neighbourhood size:            4.33 
+  average branching factor:              2.17 
+
+  learning algorithm:                    Two-Phase Restricted Maximization 
+  constraint-based method:               Semi-Interleaved HITON-PC 
+  conditional independence test:         Mutual Information (cond. Gauss.) 
+  score-based method:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  alpha threshold:                       0.01 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  6549 
+  optimized:                             TRUE 
+
+> alt2_dag_5 = rsmax2(Insect_flight2, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 3)) # model 5: limiting to 3 the no. parents
+> dim(vstructs(alt2_dag_5))
+[1] 12  3
+> nnodes(alt2_dag_5)
+[1] 12
+> narcs(alt2_dag_5)
+[1] 25
+> root.nodes(alt2_dag_5)
+[1] "Other_sp1" "Other_sp2"
+> leaf.nodes(alt2_dag_5)
+[1] "Wind"      "Rainfall"  "TempRange"
+> alt2_dag_5
+
+  Bayesian network learned via Hybrid methods
+
+  model:
+   [Other_sp1][Other_sp2][Day|Other_sp1:Other_sp2][Flight|Other_sp1][PhotonFlux|Day:Flight:Other_sp2][Rainfall|Flight:Other_sp1]
+   [Humidity|PhotonFlux:Day:Flight][MaxTemp|Humidity:Day:Flight][tSunset|MaxTemp:Flight:Other_sp2][Wind|Humidity:tSunset:Flight]
+   [tSunrise|tSunset:Flight:Other_sp2][TempRange|Humidity:tSunrise]
+  nodes:                                 12 
+  arcs:                                  25 
+    undirected arcs:                     0 
+    directed arcs:                       25 
+  average markov blanket size:           5.17 
+  average neighbourhood size:            4.17 
+  average branching factor:              2.08 
+
+  learning algorithm:                    Two-Phase Restricted Maximization 
+  constraint-based method:               Semi-Interleaved HITON-PC 
+  conditional independence test:         Mutual Information (cond. Gauss.) 
+  score-based method:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  alpha threshold:                       0.01 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  6394 
+  optimized:                             TRUE 
+
+> alt2_dag_6 = rsmax2(Insect_flight2, restrict = "si.hiton.pc", restrict.args = list(test = "mi-cg", alpha = 0.01), maximize = "hc", maximize.args = list(score = "bic-cg", restart = 10, perturb = 5, maxp = 2)) # model 6: limiting to 2 the no. parents
+> dim(vstructs(alt2_dag_6))
+[1] 5 3
+> nnodes(alt2_dag_6)
+[1] 12
+> narcs(alt2_dag_6)
+[1] 18
+> root.nodes(alt2_dag_6)
+[1] "Flight"    "Other_sp2"
+> leaf.nodes(alt2_dag_6)
+[1] "Wind"     "Rainfall" "tSunset" 
+> alt2_dag_6
+
+  Bayesian network learned via Hybrid methods
+
+  model:
+   [Flight][Other_sp2][PhotonFlux|Flight:Other_sp2][Other_sp1|Flight][Humidity|PhotonFlux:Flight][Rainfall|Flight:Other_sp1][Day|Other_sp1:Other_sp2]
+   [Wind|Humidity:Flight][MaxTemp|Humidity:Day][TempRange|Humidity][tSunrise|TempRange:Flight][tSunset|MaxTemp:tSunrise]
+  nodes:                                 12 
+  arcs:                                  18 
+    undirected arcs:                     0 
+    directed arcs:                       18 
+  average markov blanket size:           3.83 
+  average neighbourhood size:            3.00 
+  average branching factor:              1.50 
+
+  learning algorithm:                    Two-Phase Restricted Maximization 
+  constraint-based method:               Semi-Interleaved HITON-PC 
+  conditional independence test:         Mutual Information (cond. Gauss.) 
+  score-based method:                    Hill-Climbing 
+  score:                                 BIC (cond. Gauss.) 
+  alpha threshold:                       0.01 
+  penalization coefficient:              4.436244 
+  tests used in the learning procedure:  6557 
+  optimized:                             TRUE 
+
+# To fit the BN using alt2_dag_6
+> bn3 = bn.fit(alt2_dag_6, Insect_flight2, method = "mle")
+> nparams(bn3)
+[1] 57
+
+# To inspect the main characteristics of the DAG of CLGBN 2
+> mb(bn3, "Flight") # to get the Markov blanket of "Flight"
+[1] "PhotonFlux" "Humidity"   "Wind"       "Rainfall"   "TempRange"  "tSunrise"   "Other_sp1"  "Other_sp2" 
+> sapply(nodes(bn3), function(node) mb(bn3, node = node))
+$PhotonFlux
+[1] "Humidity"  "Flight"    "Other_sp2"
+
+$Humidity
+[1] "PhotonFlux" "Wind"       "MaxTemp"    "TempRange"  "Day"        "Flight"    
+
+$Wind
+[1] "Humidity" "Flight"  
+
+$Rainfall
+[1] "Flight"    "Other_sp1"
+
+$MaxTemp
+[1] "Humidity" "tSunrise" "tSunset"  "Day"     
+
+$TempRange
+[1] "Humidity" "tSunrise" "Flight"  
+
+$tSunrise
+[1] "MaxTemp"   "TempRange" "tSunset"   "Flight"   
+
+$tSunset
+[1] "MaxTemp"  "tSunrise"
+
+$Day
+[1] "Humidity"  "MaxTemp"   "Other_sp1" "Other_sp2"
+
+$Flight
+[1] "PhotonFlux" "Humidity"   "Wind"       "Rainfall"   "TempRange"  "tSunrise"   "Other_sp1"  "Other_sp2" 
+
+$Other_sp1
+[1] "Rainfall"  "Day"       "Flight"    "Other_sp2"
+
+$Other_sp2
+[1] "PhotonFlux" "Day"        "Flight"     "Other_sp1" 
+
+> sapply(nodes(bn3), function(node) dsep(bn3, "Flight", node)) # to check if 'Flight' is d-separated from the other nodes (answer: TRUE for "Other_sp2", FALSE for the other nodes)
+PhotonFlux   Humidity       Wind   Rainfall    MaxTemp  TempRange   tSunrise    tSunset        Day     Flight  Other_sp1  Other_sp2 
+     FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE      FALSE       TRUE 
+> bnlearn::children(bn3, "Flight")
+[1] "PhotonFlux" "Humidity"   "Wind"       "Rainfall"   "tSunrise"   "Other_sp1" 
+> bnlearn::parents(bn3, "Flight")
+character(0)
+> root.nodes(bn3)
+[1] "Flight"    "Other_sp2"
+> leaf.nodes(bn3)
+[1] "Wind"     "Rainfall" "tSunset" 
+> dim(vstructs(bn3)) # to obtain the number of v-structures present in the DAG (5 in this case)
+[1] 5 3
+> vstructs(bn3) # to get the v-structures present in the DAG
+     X           Z            Y          
+[1,] "Flight"    "PhotonFlux" "Other_sp2"
+[2,] "Humidity"  "MaxTemp"    "Day"      
+[3,] "TempRange" "tSunrise"   "Flight"   
+[4,] "MaxTemp"   "tSunset"    "tSunrise" 
+[5,] "Other_sp1" "Day"        "Other_sp2"
+
+# To check if the focus species is d-separated from the other two species
+> dsep(bn3,"Flight","Other_sp1") # FALSE
+[1] FALSE
+> dsep(bn3,"Flight","Other_sp2") # TRUE
+[1] TRUE
+
+# To check for all pairwise paths between the three insect species
+> bnlearn::path(bn3, from = "Other_sp1", to = "Other_sp2")
+[1] FALSE
+> bnlearn::path(bn3, from = "Other_sp2", to = "Other_sp1")
+[1] FALSE
+> bnlearn::path(bn3, from = "Other_sp1", to = "Flight")
+[1] FALSE
+> bnlearn::path(bn3, from = "Flight", to = "Other_sp1")
+[1] TRUE
+> bnlearn::path(bn3, from = "Other_sp2", to = "Flight")
+[1] FALSE
+> bnlearn::path(bn3, from = "Flight", to = "Other_sp2")
+[1] FALSE
+
+####################################################################
+####################   PROBABILISTIC INFERENCE  ####################
+####################################################################
+
+################### DISCRETE BN ###################
+
+#### EXACT INFERENCE
+
+# first query: probability of a sunny and windy day knowing that the insect is flying
+> evidence1 = setEvidence(junction, nodes = "Flight", states = "yes") # to set the evidence ('Flight' = 'Yes')
+> pEvidence(evidence1) # to get the probability of this evidence (p = 0.106)
+[1] 0.106
+> query1j = querygrain(evidence1, nodes = c("Wind","PhotonFlux"), type = "joint") # to perform the conditional probability query and get the joint distribution of "Wind" and "PhotonFlux"
+> tp1 <- query1j['>=1704','>=4.1']
+> tp1
+[1] 0.02775826
+
+# second query: probability of warm day knowing that the insect is flying and we are at the end of the year
+> evidence2 = setEvidence(junction, nodes = c("Flight","Day"), states = c("yes",">=344")) # to set the evidence ('Flight' = 'Yes', 'Day' >=344)
+> pEvidence(evidence2) # p = 0.003074
+[1] 0.003074
+> query2 = querygrain(evidence2, nodes = "MaxTemp") # to perform the conditional probability query
+> tp2<-query2$MaxTemp[">=17.5"]
+> tp2
+>=17.5 
+ 0.227 
+
+# third query: probability of a warm, humid day knowing that the insect is not flying and we are in the first semester of the year
+> evidence3 = setEvidence(junction, nodes = c("Flight","Day"), states = c("no","<344")) # to set the evidence ('Flight' = 'No', 'Day' <344)
+> pEvidence(evidence3) # 0.783144
+[1] 0.783144
+> query3j = querygrain(evidence3, nodes = c("MaxTemp","Humidity"), type = "joint") # to perform the conditional probability query and get the joint distribution of "MaxTemp" and "Humidity"
+> tp3 <- query3j['>=93','>=17.5']
+> tp3
+[1] 0.000789
+
+# fourth query: probability of insect flying knowing that is a few minutes after sunrise and it is raining at the end of the year
+> evidence4 = setEvidence(junction, nodes = c("tSunrise","Rainfall","Day"), states = c("<19",">=0.1",">=344")) # to set the evidence for 'tSunrise', 'Rainfall' and 'Day'
+> pEvidence(evidence4) # 0.0007049093
+[1] 0.0007049093
+> query4 = querygrain(evidence4, nodes = c("Flight")) # to perform the conditional probability query
+> tp4 <- query4$Flight['yes']
+> tp4
+       yes 
+0.00334584
+
+#### APPROXIMATE INFERENCE 
+
+# first query: probability of a sunny and windy day knowing that the target species is flying
+> p1b = cpquery(bn, event = (Wind == ">=4.1") & (PhotonFlux == ">=1704"), evidence = (Flight == "yes"), method = "ls", n = 10^6) # logic sampling method
+> p1b
+[1] 0.02715709
+
+> p1c = cpquery(bn, event = (Wind == ">=4.1") & (PhotonFlux == ">=1704"), evidence = list(Flight = "yes"), method = "lw", n = 10^6) # likelihood weighting method
+> p1c
+[1] 0.027629
+
+# second query: probability of warm day knowing that the target species is flying and we are at the end of the year
+> p2b = cpquery(bn, event = (MaxTemp == ">=17.5"), evidence = (Flight == "yes") & (Day == ">=344"), method = "ls", n = 10^6)
+> p2b
+[1] 0.224178
+
+> p2c = cpquery(bn, event = (MaxTemp == ">=17.5"), evidence = list(Flight = "yes", Day = ">=344"), method = "lw", n = 10^6)
+> p2c
+[1] 0.226194
+
+# third query: probability of a warm, humid day knowing that the target species is not flying and we are in the first semester of the year
+> p3b = cpquery(bn, event = (MaxTemp == ">=17.5") & (Humidity == ">=93"), evidence = (Flight == "no") & (Day == "<344"), method = "ls", n = 10^6)
+> p3b
+[1] 0.0007913877
+
+> p3c = cpquery(bn, event = (MaxTemp == ">=17.5") & (Humidity == ">=93"), evidence = list(Flight = "no", Day = "<344"), method = "lw", n = 10^6)
+> p3c
+[1] 0.000794
+
+# fourth query: probability of the target species flying knowing that it is a few minutes after sunrise and it is raining at the end of the year
+> p4b = cpquery(bn, event = (Flight == "yes"), evidence = (tSunrise == "<19") & (Rainfall == ">=0.1") & (Day == ">=344"), method = "ls", n = 10^6)
+> p4b
+[1] 0.005681818
+
+> p4c = cpquery(bn, event = (Flight == "yes"), evidence = list(tSunrise = "<19", Rainfall = ">=0.1", Day = ">=344"), method = "lw", n = 10^6)
+> p4c
+[1] 0.003243376
+
+################### CLGBN 1 ###################
+
+#### APPROXIMATE INFERENCE
+
+# first query: probability of a sunny and windy day knowing that the target species is flying
+> p1.1_ls = cpquery(bn2, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = (Flight == "Yes"), method = "ls")
+> p1.1_ls
+[1] 0.0130719
+
+> p1.1_lw = cpquery(bn2, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = list(Flight = "Yes"), method = "lw")
+> p1.1_lw
+[1] 0.011
+ 
+# second query: probability of warm day knowing that the target species is flying and we are at the end of the year
+> p2.1_ls = cpquery(bn2, event = ((MaxTemp >=17.5)), evidence = ((Flight == "Yes") & (Day >=344)), method = "ls")
+> p2.1_ls
+[1] 0.3932584
+
+> p2.1_lw = cpquery(bn2, event = ((MaxTemp >=17.5)), evidence = list(Flight = "Yes", Day = c(344,366)), method = "lw") # Interval 344-366 for "Day"
+> p2.1_lw
+[1] 0.4498233
+
+# third query: probability of a warm, humid day knowing that the target species is not flying and we are in the first semester of the year
+> p3.1_ls = cpquery(bn2, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = ((Flight == "No") & (Day <344)), method = "ls")
+> p3.1_ls
+[1] 0.004286671
+ 
+> p3.1_lw = cpquery(bn2, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = list(Flight = "No", Day = c(1,343)), method = "lw")
+> p3.1_lw
+[1] 0.00264955
+
+# fourth query: probability that the target species is flying knowing that it is a few minutes after sunrise and it is raining at the end of the year
+> p4.1_ls = cpquery(bn2, event = ((Flight == "Yes")), evidence = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), method = "ls")
+> p4.1_ls
+[1] 0
+
+> cpquery(bn2, event = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), evidence = TRUE) # the probability of this event is equal to zero!!
+[1] 0
+
+> p4.1_lw = cpquery(bn2, event = ((Flight == "Yes")), evidence = list(tSunrise = c(0,19), Rainfall = c(0.1,0.3), Day = c(344,366)), method = "lw")
+> p4.1_lw
+[1] 1.613908e-263
+
+
+################### CLGBN 2 ###################
+ 
+#### APPROXIMATE INFERENCE
+ 
+# first query: probability of a sunny and windy day knowing that the target species is flying
+> p1.2_ls = cpquery(bn3, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = (Flight == "Yes"), method = "ls")
+> p1.2_ls
+[1] 0.01608325
+
+> p1.2_lw = cpquery(bn3, event = ((Wind >=4.1) & (PhotonFlux >=1704)), evidence = list(Flight = "Yes"), method = "lw")
+> p1.2_lw
+[1] 0.0198
+
+# second query: probability of warm day knowing that the target species is flying and we are at the end of the year
+> p2.2_ls = cpquery(bn3, event = ((MaxTemp >=17.5)), evidence = ((Flight == "Yes") & (Day >=344)), method = "ls")
+> p2.2_ls
+[1] 0.1666667
+
+> p2.2_lw = cpquery(bn3, event = ((MaxTemp >=17.5)), evidence = list(Flight = "Yes", Day = c(344,366)), method = "lw") # Interval 344-366 for "Day"
+> p2.2_lw
+[1] 0.2286413
+ 
+# third query: probability of a warm, humid day knowing that the target species is not flying and we are in the first semester of the year
+> p3.2_ls = cpquery(bn3, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = ((Flight == "No") & (Day <344)), method = "ls")
+> p3.2_ls
+[1] 0.004680396
+
+> p3.2_lw = cpquery(bn3, event = ((MaxTemp >=17.5) & (Humidity >=93)), evidence = list(Flight = "No", Day = c(1,343)), method = "lw")
+> p3.2_lw
+[1] 0.002256987
+
+# fourth query: probability that the target species is flying knowing that it is a few minutes after sunrise and it is raining at the end of the year
+> p4.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), method = "ls")
+> p4.2_ls
+[1] 0
+ 
+> cpquery(bn3, event = ((tSunrise <19) & (Rainfall >=0.1) & (Day >=344)), evidence = TRUE) # the probability of this event is equal to zero!!
+[1] 0
+
+> p4.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(tSunrise = c(0,19), Rainfall = c(0.1,0.3), Day = c(344,366)), method = "lw")
+> p4.2_lw
+[1] 1.893792e-231
+
+# fifth query: probability that the target insect species is flying knowing that the other two species are also flying
+> p5.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((Other_sp1 == "Yes") & (Other_sp2 == "Yes")), method = "ls")
+> p5.2_ls
+[1] 0.75
+
+> cpquery(bn3, event = ((Other_sp1 == "Yes") & (Other_sp2 == "Yes")), evidence = TRUE) # to check the probability that the other species are flying given no evidence (p = 8e-04)
+[1] 6e-04
+
+> p5.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(Other_sp1 = "Yes", Other_sp2 = "Yes"), method = "lw")
+> p5.2_lw
+[1] 0.5717112
+
+# sixth query: probability that the target insect species is flying knowing that the other two species are not flying
+> p6.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((Other_sp1 == "No") & (Other_sp2 == "No")), method = "ls")
+> p6.2_ls
+[1] 0.09914835
+
+> cpquery(bn3, event = ((Other_sp1 == "No") & (Other_sp2 == "No")), evidence = TRUE) # to check the probability that the other species are not flying given no evidence (p = 0.9546)
+[1] 0.9501
+
+> p6.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(Other_sp1 = "No", Other_sp2 = "No"), method = "lw")
+> p6.2_lw
+[1] 0.09682804
+
+# seventh query: probability that the target insect species is flying knowing that none of the other species is flying and we are in a sunny, warm day of the first semester
+> p7.2_ls = cpquery(bn3, event = ((Flight == "Yes")), evidence = ((Other_sp1 == "No") & (Other_sp2 == "No") & (PhotonFlux >=1704) & (MaxTemp >=17.5) & (Day <344)), method = "ls")
+> p7.2_ls
+[1] 0.2410714
+ 
+> p7.2_lw = cpquery(bn3, event = ((Flight == "Yes")), evidence = list(Other_sp1 = "No", Other_sp2 = "No", PhotonFlux = c(1704,2100), MaxTemp = c(17.5,32.4), Day = c(344,366)), method = "lw")
+> p7.2_lw
+[1] 0.284936
